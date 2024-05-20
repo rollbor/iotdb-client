@@ -44,6 +44,7 @@ high-speed data ingestion and complex data analysis in the IoT industrial fields
 ## About version support
 Supports the latest version 1.3.1 of IoTDB and is also compatible with operations below version 1.0
 
+We will continue to update and keep in sync with the latest official IoTDB library in the future
 ## Overview
 
 This is the Rust client of Apache IoTDB.
@@ -111,9 +112,77 @@ fn demo() -> Result<()> {
         session.set_time_zone("Asia/Shanghai")?;
     }
 
+    //set_storage_group
+    session.set_storage_group("root.ln1")?;
+    //session.delete_storage_group("root.ln1")?;
+    //session.delete_storage_groups(vec!["root.ln1", "root.ln2"])?;
+
+    //execute_statement
+    {
+        println!("start executing statement...");
+        let dataset = session.execute_statement("show timeseries", None)?;
+        let mut table = Table::new();
+        table.set_titles(Row::new(
+            dataset
+                .get_column_names()
+                .iter()
+                .map(|c| cell!(c))
+                .collect(),
+        ));
+        dataset.for_each(|r: RowRecord| {
+            table.add_row(Row::new(
+                r.values.iter().map(|v: &Value| cell!(v)).collect(),
+            ));
+        });
+        table.printstd();
+        println!("end executing statement...");
+    }
+
+
+    //execute_batch_statement
+    {
+        session.execute_batch_statement(vec![
+            "insert into root.ln1.dev0(time,s5) values(1,true)",
+            "insert into root.ln1.dev1(time,s5) values(2,true)",
+            "insert into root.ln1.dev2(time,s5) values(3,true)",
+        ])?;
+        //session.delete_timeseries(vec!["root.ln1.dev0.s5"])?;
+    }
+
+    //execute_raw_data_query
+    {
+        println!("start execute_raw_data_query statement...");
+        let dataset = session.execute_raw_data_query(
+            vec![
+                "root.ln1.dev0.s5",
+                "root.ln1.dev1.s5",
+                "root.ln1.dev2.s5",
+            ],
+            0,
+            i64::MAX,
+            3000
+        )?;
+        let mut table = Table::new();
+        table.set_titles(Row::new(
+            dataset
+                .get_column_names()
+                .iter()
+                .map(|c| cell!(c))
+                .collect(),
+        ));
+        dataset.for_each(|r: RowRecord| {
+            table.add_row(Row::new(
+                r.values.iter().map(|v: &Value| cell!(v)).collect(),
+            ));
+        });
+        table.printstd();
+        println!("end execute_raw_data_query statement...");
+    }
+
     //execute_query_statement
     {
-        let dataset = session.execute_query_statement(" select * from root.sg_rs.*;", None)?;
+        println!("start execute_query_statement...");
+        let dataset = session.execute_query_statement(" select * from root.ln1.*;", None)?;
         // Get columns, column types and values from the dataset
         // For example:
         let width = 18;
@@ -147,9 +216,19 @@ fn demo() -> Result<()> {
             println!("|");
         });
         print_line_sep();
+        println!("end execute_query_statement...");
     }
+
+    //execute_update_statement
+    {
+        if let Some(dataset) =
+            session.execute_update_statement("delete from root.ln1.*")?
+        {
+            dataset.for_each(|r| println!("timestamp: {} {:?}", r.timestamp, r.values));
+        }
+    }
+
     session.close()?;
     Ok(())
 }
-
 ```
